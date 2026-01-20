@@ -209,3 +209,38 @@ async def list_groups_cmd(client: Client, message: Message):
     text += f"\n━━━━━━━━━━━━━━━\n<b>Total Approved:</b> {len(approved)}\n<b>Total Pending:</b> {len(pending)}"
     
     await message.reply(text)
+
+
+@Client.on_message(filters.command("pending"))
+async def list_pending_groups_cmd(client: Client, message: Message):
+    """List pending groups with detailed information"""
+    owner_id = get_owner_id()
+    
+    if message.from_user.id != owner_id:
+        return
+    
+    pending = load_pending_groups()
+    
+    text = "<pre>Pending Groups ~ Sos ✦</pre>\n━━━━━━━━━━━━━━━\n"
+    
+    if pending:
+        text += "\n<b>⏳ Pending Approval:</b>\n\n"
+        for idx, g in enumerate(pending, 1):
+            if isinstance(g, dict):
+                group_name = g.get('title', 'Unknown')
+                group_id = g.get('id', 'N/A')
+                group_username = g.get('username')
+                
+                text += f"<b>{idx}. {group_name}</b>\n"
+                text += f"   • <b>ID:</b> <code>{group_id}</code>\n"
+                text += f"   • <b>Username:</b> @{group_username if group_username else 'None'}\n"
+                text += f"   • <b>Approve:</b> <code>/add {group_id}</code>\n\n"
+            else:
+                text += f"<b>{idx}.</b> <code>{g}</code>\n"
+                text += f"   • <b>Approve:</b> <code>/add {g}</code>\n\n"
+    else:
+        text += "\n<i>No pending groups.</i>\n"
+    
+    text += f"━━━━━━━━━━━━━━━\n<b>Total Pending:</b> {len(pending)}"
+    
+    await message.reply(text)

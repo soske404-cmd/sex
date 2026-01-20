@@ -31,6 +31,10 @@ def generate_cards(bin_code, mes, ano, cvv, amount, brand=""):
 
     brand_lower = brand.lower()
     cvv_len = 4 if "amex" in brand_lower or "american express" in brand_lower else 3
+    
+    # Get current year for validation
+    from datetime import datetime
+    current_year = int(datetime.now().strftime("%y"))
 
     for _ in range(amount):
 
@@ -39,7 +43,8 @@ def generate_cards(bin_code, mes, ano, cvv, amount, brand=""):
         cc_final = luhn(list(map(int, cc_number)), 16)
 
         mm = fill_pattern(mes, 2, (1, 12))
-        yy = fill_pattern(ano, 2, (25, 29))
+        # Generate year from current year + 1 to current year + 5 (valid cards)
+        yy = fill_pattern(ano, 2, (current_year + 1, current_year + 5))
         cvv_ = fill_pattern(cvv, cvv_len, (10**(cvv_len-1), 10**cvv_len - 1))
 
         cards.append(f"{cc_final}|{mm}|{yy}|{cvv_}")

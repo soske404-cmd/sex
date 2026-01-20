@@ -2,10 +2,38 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 import requests
 
+# Map common shorthand country codes to API codes
+COUNTRY_CODE_MAP = {
+    "uk": "gb",   # United Kingdom
+    "jp": "jp",   # Japan
+    "it": "it",   # Italy
+    "sp": "es",   # Spain
+    "sg": "sg",   # Singapore
+    "us": "us",   # United States
+    "ca": "ca",   # Canada
+    "au": "au",   # Australia
+    "de": "de",   # Germany
+    "fr": "fr",   # France
+    "in": "in",   # India
+    "br": "br",   # Brazil
+    "mx": "mx",   # Mexico
+    "nl": "nl",   # Netherlands
+    "ch": "ch",   # Switzerland
+    "tr": "tr",   # Turkey
+    "dk": "dk",   # Denmark
+    "fi": "fi",   # Finland
+    "no": "no",   # Norway
+    "nz": "nz",   # New Zealand
+    "ie": "ie",   # Ireland
+}
+
 @Client.on_message(filters.command("fake") & ~filters.edited)
 async def generate_fake_user(client, message: Message):
     args = message.text.split()
-    country_code = args[1].lower() if len(args) > 1 else "us"
+    country_input = args[1].lower() if len(args) > 1 else "us"
+    
+    # Map shorthand to proper country code
+    country_code = COUNTRY_CODE_MAP.get(country_input, country_input)
 
     msg = await message.reply("<pre>Generating Fake Identity...</pre>", quote=True)
 

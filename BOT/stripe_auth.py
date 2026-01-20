@@ -470,11 +470,36 @@ async def stripe_auth_mass(client, message):
             user_locks.pop(user_id, None)
             return await message.reply("❌ No valid cards found!", reply_to_message_id=message.id)
         
+        # Handle cards exceeding limit with button option
         if len(all_cards) > mlimit:
             user_locks.pop(user_id, None)
+            
+            # Create button to continue with limit
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton(
+                    f"Continue with {mlimit} cards ✅", 
+                    callback_data=f"mau_limit|{user_id}|{mlimit}"
+                )],
+                [InlineKeyboardButton("Cancel ❌", callback_data="mau_cancel")]
+            ])
+            
+            # Store cards temporarily for callback
+            import json
+            temp_file = f"downloads/temp_cards_{user_id}.json"
+            import os
+            os.makedirs("downloads", exist_ok=True)
+            with open(temp_file, "w") as f:
+                json.dump(all_cards[:mlimit], f)
+            
             return await message.reply(
-                f"❌ Max {mlimit} cards allowed for your plan!",
-                reply_to_message_id=message.id
+                f"⚠️ <b>Card Limit Exceeded</b>\n\n"
+                f"<b>Your plan allows:</b> <code>{mlimit} cards</code>\n"
+                f"<b>You sent:</b> <code>{len(all_cards)} cards</code>\n\n"
+                f"Click below to check first {mlimit} cards:",
+                reply_to_message_id=message.id,
+                reply_markup=buttons
             )
         
         available_credits = user_data.get("plan", {}).get("credits", 0)
@@ -535,19 +560,190 @@ async def stripe_auth_mass(client, message):
         if available_credits != "∞":
             deduct_credit_bulk(user_id, card_count)
         
-        display_results = final_results[-10:] if len(final_results) > 10 else final_results
+        # Show all results, not just last 10
+        final_text = f"<pre>✦ [$mau] | M-Stripe Auth</pre>\n"
+        final_text += "\n".join(final_results) + "\n"
+        final_text += f"<b>[⚬] T/t:</b> <code>{timetaken}s</code>\n"
+        final_text += f"<b>[⚬] Total:</b> <code>{card_count} cards</code>\n"
+        final_text += f"<b>[⚬] Checked By:</b> {checked_by} [<code>{plan} {badge}</code>]"
         
-        await loader_msg.edit(
-            f"<pre>✦ [$mau] | M-Stripe Auth</pre>\n"
-            f"{chr(10).join(display_results)}\n"
-            f"<b>[⚬] T/t:</b> <code>{timetaken}s</code>\n"
-            f"<b>[⚬] Total:</b> <code>{card_count} cards</code>\n"
-            f"<b>[⚬] Checked By:</b> {checked_by} [<code>{plan} {badge}</code>]",
-            disable_web_page_preview=True
-        )
+        # If message is too long, send as file
+        if len(final_text) > 4000:
+            import os
+            os.makedirs("downloads", exist_ok=True)
+            filename = f"downloads/mau_results_{user_id}.txt"
+            
+            with open(filename, "w") as f:
+                f.write("Mass Stripe Auth Results\n")
+                f.write("=" * 50 + "\n\n")
+                for result in final_results:
+                    # Remove HTML tags for file
+                    clean_result = result.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", "")
+                    f.write(clean_result + "\n")
+                f.write("\n" + "=" * 50 + "\n")
+                f.write(f"Time taken: {timetaken}s\n")
+                f.write(f"Total cards: {card_count}\n")
+            
+            await message.reply_document(
+                filename,
+                caption=f"<pre>✦ [$mau] | M-Stripe Auth Results</pre>\n"
+                        f"<b>[⚬] Total:</b> <code>{card_count} cards</code>\n"
+                        f"<b>[⚬] T/t:</b> <code>{timetaken}s</code>\n"
+                        f"<b>[⚬] Checked By:</b> {checked_by} [<code>{plan} {badge}</code>]",
+                reply_to_message_id=message.id
+            )
+            await loader_msg.delete()
+            os.remove(filename)
+        else:
+            await loader_msg.edit(
+                final_text,
+                disable_web_page_preview=True
+            )
     
     except Exception as e:
         await message.reply(f"⚠️ Error: {str(e)[:50]}", reply_to_message_id=message.id)
     
     finally:
         user_locks.pop(user_id, None)
+
+
+@Client.on_callback_query(filters.regex(r"^mau_limit\|"))
+async def mau_limit_callback(client, callback):
+    """Handle mass auth with limit"""
+    try:
+        _, user_id, mlimit = callback.data.split("|")
+        user_id = str(user_id)
+        mlimit = int(mlimit)
+        
+        # Check if callback user matches the one who initiated
+        if str(callback.from_user.id) != user_id:
+            return await callback.answer("❌ This is not your request!", show_alert=True)
+        
+        if user_id in user_locks:
+            return await callback.answer("⚠️ Already processing!", show_alert=True)
+        
+        user_locks[user_id] = True
+        
+        # Load stored cards
+        import json
+        import os
+        temp_file = f"downloads/temp_cards_{user_id}.json"
+        
+        if not os.path.exists(temp_file):
+            user_locks.pop(user_id, None)
+            return await callback.answer("❌ Cards expired, try again!", show_alert=True)
+        
+        with open(temp_file, "r") as f:
+            all_cards = json.load(f)
+        
+        os.remove(temp_file)
+        
+        users = load_users()
+        user_data = users.get(user_id, {})
+        plan = user_data.get("plan", {}).get("plan", "Free")
+        badge = user_data.get("plan", {}).get("badge", "🎟️")
+        available_credits = user_data.get("plan", {}).get("credits", 0)
+        
+        card_count = len(all_cards)
+        
+        if available_credits != "∞":
+            try:
+                if card_count > int(available_credits):
+                    user_locks.pop(user_id, None)
+                    return await callback.message.edit_text(
+                        "<pre>Insufficient Credits ❗️</pre>\n<b>Type /buy to get Credits.</b>"
+                    )
+            except:
+                pass
+        
+        checked_by = f"<a href='tg://user?id={user_id}'>{callback.from_user.first_name}</a>"
+        
+        await callback.message.edit_text(
+            f"<pre>✦ [$mau] | M-Stripe Auth</pre>\n"
+            f"<b>[⚬] Gateway:</b> <b>Stripe Auth</b>\n"
+            f"<b>[⚬] Cards:</b> <code>{card_count}</code>\n"
+            f"<b>[⚬] Status:</b> <code>Processing...</code>"
+        )
+        
+        from time import time
+        import asyncio
+        start_time = time()
+        final_results = []
+        loop = asyncio.get_event_loop()
+        
+        for card in all_cards:
+            parts = card.split("|")
+            if len(parts) == 4:
+                cc, mm, yy, cvv = parts
+                status, response = await loop.run_in_executor(None, check_stripe_auth, cc, mm, yy, cvv)
+                
+                final_results.append(
+                    f"• <b>Card:</b> <code>{card}</code>\n"
+                    f"• <b>Status:</b> <code>{status}</code>\n"
+                    f"• <b>Response:</b> <code>{response}</code>\n"
+                    "━━━━━━━━━━━━"
+                )
+                
+                try:
+                    await callback.message.edit_text(
+                        f"<pre>✦ [$mau] | M-Stripe Auth</pre>\n"
+                        + "\n".join(final_results[-8:]) + "\n"
+                        f"<b>[⚬] Progress:</b> <code>{len(final_results)}/{card_count}</code>\n"
+                        f"<b>[⚬] Checked By:</b> {checked_by}",
+                        disable_web_page_preview=True
+                    )
+                except:
+                    pass
+        
+        end_time = time()
+        timetaken = round(end_time - start_time, 2)
+        
+        if available_credits != "∞":
+            deduct_credit_bulk(user_id, card_count)
+        
+        # Show all results
+        final_text = f"<pre>✦ [$mau] | M-Stripe Auth</pre>\n"
+        final_text += "\n".join(final_results) + "\n"
+        final_text += f"<b>[⚬] T/t:</b> <code>{timetaken}s</code>\n"
+        final_text += f"<b>[⚬] Total:</b> <code>{card_count} cards</code>\n"
+        final_text += f"<b>[⚬] Checked By:</b> {checked_by} [<code>{plan} {badge}</code>]"
+        
+        if len(final_text) > 4000:
+            os.makedirs("downloads", exist_ok=True)
+            filename = f"downloads/mau_results_{user_id}.txt"
+            
+            with open(filename, "w") as f:
+                f.write("Mass Stripe Auth Results\n")
+                f.write("=" * 50 + "\n\n")
+                for result in final_results:
+                    clean_result = result.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", "")
+                    f.write(clean_result + "\n")
+                f.write("\n" + "=" * 50 + "\n")
+                f.write(f"Time taken: {timetaken}s\n")
+                f.write(f"Total cards: {card_count}\n")
+            
+            await callback.message.reply_document(
+                filename,
+                caption=f"<pre>✦ [$mau] | M-Stripe Auth Results</pre>\n"
+                        f"<b>[⚬] Total:</b> <code>{card_count} cards</code>\n"
+                        f"<b>[⚬] T/t:</b> <code>{timetaken}s</code>\n"
+                        f"<b>[⚬] Checked By:</b> {checked_by} [<code>{plan} {badge}</code>]"
+            )
+            await callback.message.delete()
+            os.remove(filename)
+        else:
+            await callback.message.edit_text(final_text, disable_web_page_preview=True)
+        
+        await callback.answer("✅ Completed!")
+        
+    except Exception as e:
+        await callback.answer(f"❌ Error: {str(e)[:50]}", show_alert=True)
+    finally:
+        user_locks.pop(user_id, None)
+
+
+@Client.on_callback_query(filters.regex(r"^mau_cancel$"))
+async def mau_cancel_callback(client, callback):
+    """Cancel mass auth"""
+    await callback.message.edit_text("❌ <b>Cancelled</b>")
+    await callback.answer("Cancelled")

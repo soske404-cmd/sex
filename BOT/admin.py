@@ -621,3 +621,78 @@ async def clear_used_codes(client: Client, message: Message):
         f"Remaining: {len(unused)} unused codes.",
         parse_mode=ParseMode.HTML
     )
+
+
+@Client.on_message(filters.command("reset"))
+async def reset_user(client: Client, message: Message):
+    """Reset user's plan AND credits to default Free plan"""
+    owner_id = get_owner_id()
+    
+    if message.from_user.id != owner_id:
+        return await message.reply("❌ Only owner can use this command.")
+    
+    # Get target user
+    target_id = None
+    
+    if message.reply_to_message:
+        target_id = str(message.reply_to_message.from_user.id)
+        target_name = message.reply_to_message.from_user.first_name
+    elif len(message.command) > 1:
+        target = message.command[1]
+        if target.startswith("@"):
+            users = load_users()
+            for uid, data in users.items():
+                if data.get("username", "").lower() == target[1:].lower():
+                    target_id = uid
+                    target_name = data.get("first_name", "Unknown")
+                    break
+            if not target_id:
+                return await message.reply(f"❌ User {target} not found.")
+        else:
+            target_id = target
+            users = load_users()
+            if target_id in users:
+                target_name = users[target_id].get("first_name", "Unknown")
+            else:
+                return await message.reply(f"❌ User ID {target_id} not found.")
+    else:
+        return await message.reply(
+            "❌ Usage:\n"
+            "• Reply to user: <code>/reset</code>\n"
+            "• By ID: <code>/reset 123456789</code>\n"
+            "• By username: <code>/reset @username</code>",
+            parse_mode=ParseMode.HTML
+        )
+    
+    users = load_users()
+    
+    if target_id not in users:
+        return await message.reply(f"❌ User {target_id} is not registered.")
+    
+    # Reset to Free plan with default credits
+    users[target_id]["plan"] = {
+        "plan": "Free",
+        "badge": "🧿",
+        "credits": "100",  # Reset credits to 100
+        "antispam": 15,
+        "mlimit": 5,
+        "private": "off",
+        "activated_at": get_ist_time(),
+        "expires_at": None,
+        "keyredeem": 0
+    }
+    users[target_id]["role"] = "Free"
+    
+    save_users(users)
+    
+    await message.reply(
+        f"<pre>User Reset ✅</pre>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"<b>[•] User:</b> {target_name}\n"
+        f"<b>[•] ID:</b> <code>{target_id}</code>\n"
+        f"<b>[•] Plan:</b> <code>Free 🧿</code>\n"
+        f"<b>[•] Credits:</b> <code>100</code>\n"
+        f"<b>[•] Status:</b> Plan and credits reset to default\n"
+        f"━━━━━━━━━━━━━━━",
+        parse_mode=ParseMode.HTML
+    )

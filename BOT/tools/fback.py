@@ -11,27 +11,24 @@ CHANNEL = CONFIG["FEEDBACK"]  # use @channel_username only
 
 
 # ✅ /fback command
-@Client.on_message(filters.command("f") & filters.reply)
+@Client.on_message(filters.command(["f", "fb"]) & filters.reply)
 async def fback_handler(client, msg: Message):
     rep = msg.reply_to_message
 
-    if not rep or not rep.photo:
+    # Support both photos and videos
+    if not rep or (not rep.photo and not rep.video):
         return await msg.reply(
-            "<b>Reply To Atleast An Image To Process It</b>",
+            "<b>Reply To An Image or Video To Process It</b>",
             reply_to_message_id=msg.id
         )
 
     if rep.from_user.id != msg.from_user.id:
         return await msg.reply(
-            "<b>You Can Submit Feedbacks Of Own Images</b>",
+            "<b>You Can Submit Feedbacks Of Own Media</b>",
             reply_to_message_id=msg.id
         )
 
-    if "#sos" not in (rep.caption or "").lower():
-        return await msg.reply(
-            "<pre>Your photo must include the tag `#Sos` in the caption ⚠️</pre>",
-            reply_to_message_id=msg.id
-        )
+    # Removed #sos requirement
 
     try:
         # Forward photo to owner
