@@ -42,7 +42,8 @@ async def notify_user_plan_activated(app, user_id: str, plan_name: str):
         "Plus": "$1",
         "Pro": "$6",
         "Elite": "$9",
-        "VIP": "$15"
+        "VIP": "$15",
+        "Ultimate": "$25"
     }
 
     await app.send_message(
@@ -144,9 +145,9 @@ async def handle_ult(client, message: Message):
 
     result = activate_ult_plan(user_id)
     if result == "already_active":
-        return await message.reply("👑 User already has an active ULTIMATE plan.")
+        return await message.reply("⭐ User already has an active ULTIMATE plan.")
     elif result:
         await message.reply(f"✅ ULTIMATE plan activated for `{user_id}`.")
-        await notify_user_plan_activated(client, user_id, "VIP")
+        await notify_user_plan_activated(client, user_id, "Ultimate")
     else:
         await message.reply("❌ Failed to activate ULTIMATE plan. User not registered.")
