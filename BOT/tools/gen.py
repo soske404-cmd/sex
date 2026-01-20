@@ -86,7 +86,7 @@ async def handle_gen(client, message: Message, extrap, amount, edit_msg_id=None,
             await message.reply_document(
                 filename,
                 caption=(
-                    f"• <b>Bin:</b> <code>{cc}</code></code>\n"
+                    f"• <b>Bin:</b> <code>{cc}</code>\n"
                     f"• <b>Amount:</b> <code>{amount}</code>\n"
                     f"• <b>Info:</b> <code>{brand} - {type_} - {level}</code>\n"
                     f"• <b>Bank:</b> <code>{bank}</code>\n"
@@ -98,7 +98,7 @@ async def handle_gen(client, message: Message, extrap, amount, edit_msg_id=None,
             os.remove(filename)
         else:
             text = (
-                f"• <b>Bin:</b> <code>{cc}</code></code>\n"
+                f"• <b>Bin:</b> <code>{cc}</code>\n"
                 f"• <b>Amount:</b> <code>{amount}</code>\n\n"
                 f"{code_block(all_cards)}\n"
                 f"━━━━━━━━━━━━━\n"

@@ -42,7 +42,7 @@ async def fback_handler(client, msg: Message):
 
         btn_msg = await client.send_message(
             OWNER,
-            f"<pre>Feedback Recieved !</pre>\n<b>⟡ From - {username}</b>\n<b>⟡ UserID - {userid}</b>",
+            f"<pre>Feedback Received !</pre>\n<b>⟡ From - {username}</b>\n<b>⟡ UserID - {userid}</b>",
             reply_to_message_id=fwd.id,
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Approve ✅", callback_data=f"approve|{msg.from_user.id}|{fwd.id}|{msg.id}|{0}")],

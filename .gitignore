@@ -1,0 +1,38 @@
+# Archive files
+*.zip
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Temporary files
+downloads/
+*.tmp
+*.log
+
+# Database files (if sensitive)
+# DATA/users.json
+# DATA/groups.json
+# DATA/pending_groups.json
+# DATA/redeem_codes.json
+
+# Config files with secrets (if any)
+# FILES/config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
