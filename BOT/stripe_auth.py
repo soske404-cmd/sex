@@ -11,7 +11,9 @@ import string
 
 # Stripe Auth API Config
 STRIPE_API_URL = "https://api.stripe.com/v1/payment_methods"
-STRIPE_PK = "pk_live_51KDcNrImW2Hlp9sc4dxVEesSbWiCa3eqc1g7JIVFf0oa2tePZ7KAkaPSe3tgV0NrHnAgHDGZxZtGqDXRCbFqz0n000pyW5QR3A"
+# Working script values from problem statement
+STRIPE_PK = "pk_live_51ETDmyFuiXB5oUVxaIafkGPnwuNcBxr1pXVhvLJ4BrWuiqfG6SldjatOGLQhuqXnDmgqwRA7tDoSFlbY4wFji7KR0079TvtxNs"
+STRIPE_ACCOUNT = "acct_1Mpulb2El1QixccJ"
 
 user_locks = {}
 
@@ -182,10 +184,6 @@ def create_payment_method_sync(cc, mm, yy, cvv):
     muid = generate_guid()
     sid = generate_guid()
     
-    # Working script values from problem statement
-    S_PK = 'pk_live_51ETDmyFuiXB5oUVxaIafkGPnwuNcBxr1pXVhvLJ4BrWuiqfG6SldjatOGLQhuqXnDmgqwRA7tDoSFlbY4wFji7KR0079TvtxNs'
-    S_ACC = 'acct_1Mpulb2El1QixccJ'
-    
     # EXACT payload from working script - ALL parameters required
     data = {
         'type': 'card',
@@ -193,8 +191,8 @@ def create_payment_method_sync(cc, mm, yy, cvv):
         'card[cvc]': cvv,
         'card[exp_year]': exp_year,
         'card[exp_month]': mm,
-        'key': S_PK,
-        '_stripe_account': S_ACC,
+        'key': STRIPE_PK,
+        '_stripe_account': STRIPE_ACCOUNT,
         'payment_user_agent': 'stripe.js/cba9216f35; stripe-js-v3/cba9216f35; payment-element; deferred-intent',
         'referrer': 'https://redbluechair.com',
         'guid': guid,
