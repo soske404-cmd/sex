@@ -204,8 +204,12 @@ def create_payment_method_sync(cc, mm, yy, cvv):
     
     try:
         # CRITICAL: Stripe Tokenization (No Proxy Here Always)
-        # Use requests.post() directly WITHOUT any proxy
-        response = requests.post(STRIPE_API_URL, headers=headers, data=data, timeout=60)
+        # Create a separate session WITHOUT proxy to avoid any proxy interference
+        session = requests.Session()
+        session.proxies = {}  # Explicitly disable all proxies
+        session.trust_env = False  # Ignore environment proxy settings
+        
+        response = session.post(STRIPE_API_URL, headers=headers, data=data, timeout=60)
         return response.json()
     except Exception as e:
         return {"error": {"message": str(e)}}
