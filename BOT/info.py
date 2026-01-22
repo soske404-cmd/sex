@@ -174,7 +174,7 @@ async def buy_command(client, message: Message):
 """
     
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Contact Owner", url=f"https://t.me/{owner_id}" if owner_id else "https://t.me/")],
+        [InlineKeyboardButton("Contact Owner", url=f"tg://user?id={owner_id}" if owner_id else "https://t.me/")],
         [InlineKeyboardButton("Close", callback_data="exit")]
     ])
     
